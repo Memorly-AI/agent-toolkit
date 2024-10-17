@@ -47,14 +47,3 @@ class CRM:
         api_response = json_rpc(self.api_url, "call", api_body)  
         return api_response
     
-
-
-
-# if __name__ == "__main__":
-#     org_url = "https://memorly-tech.odoo.com"
-#     db = "memorly-tech"
-#     key = "758537512665184c100f3fd854d2180ddc565898"
-#     crm = CRM(org_url, db, key)
-#     crm.get_uid()
-
-
