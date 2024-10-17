@@ -132,7 +132,7 @@ This project is licensed under the [TODO] License - see the [LICENSE](LICENSE) f
 ## Community
 Join the discussion! Connect with other users and developers:
 - [Slack](https://slack.example.com/Open-Source-Agent-Tool-Kit)
-- [Discord](https://discord.example.com/Open-Source-Agent-Tool-Kit)
+- [Discord](https://discord.gg/zpgqntpd)
 - [GitHub Discussions](https://github.com/yourusername/Open-Source-Agent-Tool-Kit/discussions)
 
 ---
