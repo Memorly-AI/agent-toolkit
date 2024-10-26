@@ -55,15 +55,21 @@ To get started with the **Open-Source Agent Tool Kit**, follow these steps:
     pip install -r requirements.txt
     ```
 
-3. **Configure Environment**
-    Update environment variables as needed to reflect your setup (e.g., database configurations, API keys).
+3. **Create a .env File**
+    Create a `.env` file in the root directory to store all API related credentials. And append it's path into the .gitignore file
 
-4. **Run the Application**
+4. **Update .gitignore**
+    Ensure your `.env` file is added to `.gitignore` to prevent it from being version controlled.
+
+5. **Configure Environment**
+    Update environment variables as needed to reflect your setup (e.g., database configurations, API keys) in the `.env` file.
+
+6. **Run the Application**
     ```bash
     python manage.py runserver
     ```
 
-5. **Access the Tool Kit**
+7. **Access the Tool Kit**
     Navigate to `http://localhost:8000` in your browser to access the toolkit.
 
 ## Usage
