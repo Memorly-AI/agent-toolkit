@@ -1,58 +1,32 @@
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import os
 import json
-from utils.constants import get_env_variable
+from google_apis.util.Auth import Auth
 
 
-class Doc:
+class Doc(Auth):
+
     def __init__(self, scopes=None):
-        self.doc_id = None
+        super().__init__(scopes)
         self.doc = None
-        self.credentials = get_env_variable("GOOGLE_API_CREDENTIALS_PATH")
-        if scopes is not None:
-            self.SCOPES = scopes
-        else:
-            self.SCOPES = ["https://www.googleapis.com/auth/documents.readonly"]
 
     def __enter__(self):
-        creds = None
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json", self.SCOPES)
+        creds = super().__enter__()
+        if isinstance(creds, dict) and "auth_url" in creds:
+            return creds
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials, self.SCOPES
-                )
-                creds = flow.run_local_server(port=0)
+        self.doc = build("docs", "v1", credentials=creds).documents()
+        return self
 
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-
-        try:
-            service = build("docs", "v1", credentials=creds)
-            self.doc = service.documents()
-            return self
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-            return error
-
-    def get(self):
+    def get(self, doc_id):
         """
         Get the content of the Google Doc.
 
         Returns:
             dict: The content of the Google Doc
         """
-        result = self.doc.get(documentId=self.doc_id).execute()
-        print(json.dumps(result, indent=4, sort_keys=True))
+        result = self.doc.get(documentId=doc_id).execute()
         return result
 
     def create(self, title, initial_text=None):
@@ -64,8 +38,7 @@ class Doc:
             initial_text (str, optional): Initial text to add to the document
         """
         doc = self.doc.create(body={"title": title}).execute()
-        self.doc_id = doc["documentId"]
-        print(f"Document created with ID: {self.doc_id}")
+        doc_id = doc["documentId"]
         
         if initial_text:
             requests = [{
@@ -76,26 +49,23 @@ class Doc:
                     "text": initial_text
                 }
             }]
-            
             try:
                 self.doc.batchUpdate(
-                    documentId=self.doc_id,
+                    documentId=doc_id,
                     body={
                         "requests": requests
                     }
                 ).execute()
-                print(f"Added initial text to document: {self.doc_id}")
             except HttpError as error:
-                print(f"Error adding initial text: {error}")
-                raise
+                raise Exception(f"An error occurred: {error}")
 
-        return doc
+        return doc_id
     
-    def get_end_index(self):
-        doc_info = self.doc.get(documentId=self.doc_id).execute()
+    def get_end_index(self, doc_id):
+        doc_info = self.doc.get(documentId=doc_id).execute()
         return doc_info['body']['content'][-1]['endIndex']
 
-    def add_content(self, text, newlines=1):
+    def add_content(self, doc_id, text, newlines=1):
         """
         Add content to the document with specified number of newlines.
         
@@ -103,7 +73,7 @@ class Doc:
             text (str): The text to add to the document
             newlines (int, optional): Number of newlines to add after the text. Defaults to 1.
         """
-        end_index = self.get_end_index()
+        end_index = self.get_end_index(doc_id)
         newline_chars = "\n" * newlines
         requests = [
             {
@@ -114,13 +84,10 @@ class Doc:
             }
         ]
         result = self.doc.batchUpdate(
-            documentId=self.doc_id,
+            documentId=doc_id,
             body={"requests": requests}
         ).execute()
-        print(f"Updated document with ID: {self.doc_id}")
         return result
     
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
-
-

@@ -1,44 +1,22 @@
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import os
-from utils.constants import get_env_variable
+from google_apis.util.Auth import Auth
 
 
-class Meet:
+class Meet(Auth):
+
     def __init__(self, scopes=None):
+        super().__init__(scopes)
+        self.service = None
         self.meeting_uri = None
-        self.credentials = get_env_variable("GOOGLE_API_CREDENTIALS_PATH")
-        if scopes is not None:
-            self.SCOPES = scopes
-        else:
-            self.SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
     def __enter__(self):
-        creds = None
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json", self.SCOPES)
+        creds = super().__enter__()
+        if isinstance(creds, dict) and "auth_url" in creds:
+            return creds
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials, self.SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-        try:
-            self.service = build("calendar", "v3", credentials=creds)
-            return self
-        except Exception as error:
-            print(f"An error occurred: {error}")
-            return error
+        self.service = build("calendar", "v3", credentials=creds)
+        return self
 
     def create(self, summary, start_time, end_time, timezone):
         event = {
