@@ -21,4 +21,5 @@ from django.urls.conf import include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/odoo/', include('odoo.urls')),
+    path('api/google/', include('google_apis.urls')),
 ]

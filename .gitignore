@@ -19,3 +19,4 @@ __pycache__/
 *.out
 .env
 **/credentials.json
+**/token.json

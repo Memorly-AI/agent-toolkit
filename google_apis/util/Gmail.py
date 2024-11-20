@@ -10,48 +10,24 @@ from email.message import EmailMessage
 import mimetypes
 import requests
 from utils.constants import get_env_variable
+from google_apis.util.Auth import Auth
 
 
-class Gmail:
+class Gmail(Auth):
+
     def __init__(self, scopes=None):
+        super().__init__(scopes)
         self.gmail = None
         self.draft_id = None
         self.credentials = get_env_variable("GOOGLE_API_CREDENTIALS_PATH")
-        if scopes is not None:
-            self.SCOPES = scopes
-        else:
-            self.SCOPES = [
-                "https://www.googleapis.com/auth/gmail.readonly",
-                "https://www.googleapis.com/auth/gmail.send",
-                "https://www.googleapis.com/auth/gmail.compose",
-                "https://www.googleapis.com/auth/gmail.modify",
-                "https://www.googleapis.com/auth/gmail.metadata",
-                "https://www.googleapis.com/auth/gmail.labels",
-            ]
 
     def __enter__(self):
-        creds = None
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json", self.SCOPES)
+        creds = super().__enter__()
+        if isinstance(creds, dict) and "auth_url" in creds:
+            return creds
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials, self.SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-
-        try:
-            self.gmail = build("gmail", "v1", credentials=creds)
-            return self
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-            return error
+        self.gmail = build("gmail", "v1", credentials=creds)
+        return self
 
     def create_draft(self, message, to, sender, subject):
         mime_message = EmailMessage()
@@ -68,7 +44,6 @@ class Gmail:
             .execute()
         )
         self.draft_id = draft["id"]
-        print(f'Draft id: {draft["id"]}\nDraft message: {draft["message"]}')
         return draft
 
     def create_draft_with_attachment(self, message, to, sender, subject, attachment):
@@ -107,10 +82,8 @@ class Gmail:
                 .execute()
             )
             self.draft_id = draft["id"]
-            print(f'Draft id: {draft["id"]}\nDraft message: {draft["message"]}')
             return draft
         except HttpError as error:
-            print(f"An error occurred: {error}")
             return None
 
     def send_send_message(self, message, to, sender, subject):
@@ -127,7 +100,6 @@ class Gmail:
             .send(userId="me", body=create_message)
             .execute()
         )
-        print(f'Message Id: {send_message["id"]}')
         return send_message
 
     def send_send_message_with_attachment(
@@ -166,7 +138,6 @@ class Gmail:
             .send(userId="me", body=create_message)
             .execute()
         )
-        print(f'Message Id: {send_message["id"]}')
         return send_message
 
     def send_draft(self, draft_id):
@@ -176,9 +147,7 @@ class Gmail:
             .send(userId="me", body={"id": draft_id})
             .execute()
         )
-        print(f"Draft sent: {draft}")
         return draft
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
-

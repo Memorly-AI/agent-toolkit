@@ -1,101 +1,84 @@
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 import os
-from utils.constants import get_env_variable
+from google_apis.util.Auth import Auth
 
 
-class Sheet:
-    def __init__(self, title, scopes=None):
-        self.title = title
-        self.sheet_id = None
-        self.credentials = get_env_variable("GOOGLE_API_CREDENTIALS_PATH")
+class Sheet(Auth):
+    def __init__(self, scopes: list = None):
+        super().__init__(scopes)
         self.sheet = None
-        if scopes is not None:
-            self.SCOPES = scopes
-        else:
-            self.SCOPES = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
 
     def __enter__(self):
-        creds = None
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json", self.SCOPES)
+        creds = super().__enter__()
+        if isinstance(creds, dict):
+            return creds
+        self.sheet = build("sheets", "v4", credentials=creds).spreadsheets()
+        return self
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials, self.SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-
-        try:
-            service = build("sheets", "v4", credentials=creds)
-            self.sheet = service.spreadsheets()
-            return self
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-            return error
-
-    def create(self):
-        spreadsheet = {"properties": {"title": self.title}}
-        spreadsheet = self.sheet.create(
-            body=spreadsheet, fields="spreadsheetId"
-        ).execute()
-        self.sheet_id = spreadsheet.get("spreadsheetId")
+    def create(self, title):
+        spreadsheet = {"properties": {"title": title}}
+        spreadsheet = self.sheet.create(body=spreadsheet).execute()
         return spreadsheet.get("spreadsheetId")
 
-    def update_values(self, range_name, value_input_option, values):
+    def update_values(self, sheet_id, range_name, value_input_option, values):
         body = {"values": values}
         result = (
             self.sheet.values()
             .update(
-                spreadsheetId=self.sheet_id,
+                spreadsheetId=sheet_id,
                 range=range_name,
                 valueInputOption=value_input_option,
                 body=body,
             )
             .execute()
         )
-        print(f"{result.get('updatedCells')} cells updated.")
         return result
 
-    def append_values(self, range_name, value_input_option, values):
-        body = {"values": values}
-        result = (
-            self.sheet.values()
-            .append(
-                spreadsheetId=self.sheet_id,
-                range=range_name,
-                valueInputOption=value_input_option,
-                body=body,
+    def append_values(self, sheet_id, range_name, value_input_option, values):
+        """
+        Append values to a Google Sheet with more detailed error handling and logging.
+        
+        Args:
+            sheet_id (str): The ID of the spreadsheet
+            range_name (str): The range to append values to (e.g., 'Sheet1!A:C')
+            value_input_option (str): How to interpret the values (USER_ENTERED or RAW)
+            values (list): 2D list of values to append
+        
+        Returns:
+            dict: API response from the append operation
+        """
+        try:
+            body = {
+                "values": values,
+                "majorDimension": "ROWS"  
+            }
+            if "!" not in range_name:
+                range_name = f"Sheet1!{range_name}"
+            
+            result = (
+                self.sheet.values()
+                .append(
+                    spreadsheetId=sheet_id,
+                    range=range_name,
+                    valueInputOption=value_input_option,
+                    insertDataOption="INSERT_ROWS",  
+                    body=body,
+                )
+                .execute()
             )
-            .execute()
-        )
-        print(f"{result.get('updates').get('updatedCells')} cells appended.")
-        return result
+            return result
+        except Exception as e:
+            raise e
 
-    def get_values(self, range_name):
+    def get_values(self, sheet_id, range_name):
         result = (
             self.sheet.values()
-            .get(spreadsheetId=self.sheet_id, range=range_name)
+            .get(spreadsheetId=sheet_id, range=range_name)
             .execute()
         )
-        rows = result.get("values", [])
-        print(f"{len(rows)} rows retrieved")
         return result
 
-    def batch_update(self, title, find, replacement):
+    def batch_update(self, sheet_id, title, find, replacement):
         requests = []
         requests.append(
             {
@@ -116,43 +99,37 @@ class Sheet:
         )
         body = {"requests": requests}
         response = self.sheet.batchUpdate(
-            spreadsheetId=self.sheet_id, body=body
+            spreadsheetId=sheet_id, body=body
         ).execute()
-        find_replace_response = response.get("replies")[1].get("findReplace")
-        print(f"{find_replace_response.get('occurrencesChanged')} replacements made.")
         return response
 
-    def batch_update_values(self, range_name, value_input_option, _values):
+    def batch_update_values(self, sheet_id, range_name, value_input_option, _values):
         values = _values
         data = [{"range": range_name, "values": values}]
         body = {"valueInputOption": value_input_option, "data": data}
         result = (
             self.sheet.values()
-            .batchUpdate(spreadsheetId=self.sheet_id, body=body)
+            .batchUpdate(spreadsheetId=sheet_id, body=body)
             .execute()
         )
-        print(f"{result.get('totalUpdatedCells')} cells updated.")
         return result
 
-    def batch_get_values(self, range_names):
+    def batch_get_values(self, sheet_id, range_names):
         result = (
             self.sheet.values()
-            .batchGet(spreadsheetId=self.sheet_id, ranges=range_names)
+            .batchGet(spreadsheetId=sheet_id, ranges=range_names)
             .execute()
         )
-        ranges = result.get("valueRanges", [])
-        print(f"{len(ranges)} ranges retrieved")
         return result
 
-    def conditional_formatting(self, format=[]):
+    def conditional_formatting(self, sheet_id, format=[]):
         body = {"requests": format}
         response = self.sheet.batchUpdate(
-            spreadsheetId=self.sheet_id, body=body
+            spreadsheetId=sheet_id, body=body
         ).execute()
-        print(f"{len(response.get('replies'))} cells updated.")
         return response
 
-    def filter_views(self, range):
+    def filter_views(self, sheet_id, range):
         addfilterviewrequest = {
             "addFilterView": {
                 "filter": {
@@ -179,7 +156,7 @@ class Sheet:
 
         body = {"requests": [addfilterviewrequest]}
         addfilterviewresponse = self.sheet.batchUpdate(
-            spreadsheetId=self.sheet_id, body=body
+            spreadsheetId=sheet_id, body=body
         ).execute()
 
         duplicatefilterviewrequest = {
@@ -192,7 +169,7 @@ class Sheet:
 
         body = {"requests": [duplicatefilterviewrequest]}
         duplicatefilterviewresponse = self.sheet.batchUpdate(
-            spreadsheetId=self.sheet_id, body=body
+            spreadsheetId=sheet_id, body=body
         ).execute()
 
         updatefilterviewrequest = {
@@ -218,10 +195,9 @@ class Sheet:
 
         body = {"requests": [updatefilterviewrequest]}
         updatefilterviewresponse = self.sheet.batchUpdate(
-            spreadsheetId=self.sheet_id, body=body
+            spreadsheetId=sheet_id, body=body
         ).execute()
-        print(str(updatefilterviewresponse))
+        return updatefilterviewresponse
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
-
