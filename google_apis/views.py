@@ -1,6 +1,3 @@
-from google_apis.util.Sheet import Sheet
-from google_apis.util.Meet import Meet
-from google_apis.util.Gmail import Gmail
 from google_apis.util.Auth import Auth
 from google_apis.util.Doc import Doc
 from django.http import JsonResponse
@@ -8,367 +5,80 @@ from django.http.request import HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 import json
+from urllib.parse import parse_qs
 
 
 @csrf_exempt
 @require_GET
 def oauth2_callback(request: HttpRequest):
     try:
-        code = request.GET.get("code") 
+        state = request.GET.get('state')
+        if state:
+            state_data = parse_qs(state)
+            uid = state_data.get('uid', [None])[0]  
+            apps = state_data.get('apps', [None])[0] 
+        else:
+            return JsonResponse({"error": "State parameter not provided"}, status=400)
+        
+        if not uid:
+            return JsonResponse({"error": "user_id not provided in the callback URL"}, status=400)
+        
+        code = request.GET.get("code", None)
         if not code:
             return JsonResponse({"error": "Authorization code not provided"}, status=400)
-        auth = Auth()
+        
+        apps = apps.split(",") if apps else []
+        auth = Auth(uid, apps=apps)
         response = auth.authorize(code)
+
         return JsonResponse({"response": response})
     except Exception as e:
         return JsonResponse({"error": str(e)})
     
 
-@csrf_exempt
-@require_POST
-def create_new_sheet(request: HttpRequest):
+def get_auth_url(uid: str, apps: list = ['all']):
     try:
-        data = json.loads(request.body)
-        title = data.get("title")
-        with Sheet() as sheet:
-            if isinstance(sheet, dict) and "auth_url" in sheet:
-                return JsonResponse({"auth_url": sheet["auth_url"]})
-            
-            response = sheet.create(title)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Sheet created successfully"
-            }, status=200)
+        auth = Auth(uid, apps=apps)
+        is_authorized = auth.check_auth()
+        if is_authorized:
+            return "Already authorized", True
+        response = auth.get_auth_url()
+        return response, False
     except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Sheet creation failed"
-        }, status=400)
-    
-
-@csrf_exempt
-@require_POST
-def update_values(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range_name = data.get("range_name")
-        value_input_option = data.get("value_input_option")
-        values = data.get("values")
-        with Sheet() as sheet:
-            response = sheet.update_values(sheet_id, range_name, value_input_option, values)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values updated successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values update failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def append_values(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range_name = data.get("range_name")
-        value_input_option = data.get("value_input_option")
-        values = data.get("values")
-        with Sheet() as sheet:
-            response = sheet.append_values(sheet_id, range_name, value_input_option, values)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values appended successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values append failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def get_values(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range_name = data.get("range_name")
-        with Sheet() as sheet:
-            response = sheet.get_values(sheet_id, range_name)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values retrieved successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values retrieval failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def batch_update(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        title = data.get("title")
-        find = data.get("find")
-        replacement = data.get("replacement")
-        with Sheet() as sheet:
-            response = sheet.batch_update(sheet_id, title, find, replacement)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values updated successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values update failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def batch_update_values(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range_name = data.get("range_name")
-        value_input_option = data.get("value_input_option")
-        values = data.get("values")
-        with Sheet() as sheet:
-            response = sheet.batch_update_values(sheet_id, range_name, value_input_option, values)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values updated successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values update failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def batch_get_values(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range_names = data.get("range_names")
-        with Sheet() as sheet:
-            response = sheet.batch_get_values(sheet_id, range_names)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Values retrieved successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Values retrieval failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def conditional_formatting(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        format = data.get("format")
-        with Sheet() as sheet:
-            response = sheet.conditional_formatting(sheet_id, format)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Conditional formatting applied successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Conditional formatting failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def filter_views(request: HttpRequest, sheet_id: str):
-    try:
-        data = json.loads(request.body)
-        range = data.get("range")
-        with Sheet() as sheet:
-            response = sheet.filter_views(sheet_id, range)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Filter views applied successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Filter views failed"
-        })
+        return str(e), False
 
 
 @csrf_exempt
 @require_POST
-def create_meet(request: HttpRequest):
-    try:
-        data = json.loads(request.body)
-        summary = data.get("summary")
-        start_time = data.get("start_time")
-        end_time = data.get("end_time")
-        timezone = data.get("timezone")
-        with Meet() as meet:
-            if isinstance(meet, dict) and "auth_url" in meet:
-                return JsonResponse({"auth_url": meet["auth_url"]})
-            
-            response = meet.create(summary, start_time, end_time, timezone)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Meet created successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Meet creation failed"
-        })
-    
+def create_auth_url(request: HttpRequest):
+    """
+        Create an authorization URL for Google API.
+        
+        Request Parameters:
+        - `tool_id` (str): Unique identifier for authentication (required)
+        - `apps` (list): List of apps to authorize (optional)
+        
+        Response: Returns the authorization URL or an error message
 
-@csrf_exempt
-@require_POST
-def create_draft(request: HttpRequest):
+        # call this api url like this with apps
+        api_url = "/api/v1/google_apis/create_auth_url?apps=drive,docs,sheet,gmail"
+    """
     try:
+        apps = request.GET.get("apps", ['all']).strip().lower().replace(" ", "").split(",")
         data = json.loads(request.body)
-        message = data.get("message")
-        to = data.get("to")
-        sender = data.get("sender")
-        subject = data.get("subject")
-        with Gmail() as gmail:
-            response = gmail.create_draft(message, to, sender, subject)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Draft created successfully"
-            })
-    except Exception as e:
+        uid = data.get("tool_id", None)
+        
+        if not uid: 
+            return JsonResponse({"error": "The owner is not found"}, status=400)
+        
+        response, status = get_auth_url(uid, apps)
         return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Draft creation failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def create_draft_with_attachment(request: HttpRequest):
-    try:
-        data = json.loads(request.body)
-        message = data.get("message")
-        to = data.get("to")
-        sender = data.get("sender")
-        subject = data.get("subject")
-        attachment = data.get("attachment")
-        with Gmail() as gmail:
-            response = gmail.create_draft_with_attachment(message, to, sender, subject, attachment)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Draft created successfully"
-            })
+            "auth_url": response,
+            "authorized": status
+        }, status=200)  
     except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Draft creation failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def send_message(request: HttpRequest):
-    try:
-        data = json.loads(request.body)
-        message = data.get("message")
-        to = data.get("to")
-        sender = data.get("sender")
-        subject = data.get("subject")
-        with Gmail() as gmail:
-            response = gmail.send_send_message(message, to, sender, subject)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Message sent successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Message send failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def send_message_with_attachment(request: HttpRequest):
-    try:
-        data = json.loads(request.body)
-        message = data.get("message")
-        to = data.get("to")
-        sender = data.get("sender")
-        subject = data.get("subject")
-        attachment = data.get("attachment")
-        with Gmail() as gmail:
-            response = gmail.send_send_message_with_attachment(message, to, sender, subject, attachment)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Message sent successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Message send failed"
-        })
-    
-
-@csrf_exempt
-@require_POST
-def send_draft(request: HttpRequest):
-    try:
-        data = json.loads(request.body)
-        draft_id = data.get("draft_id")
-        with Gmail() as gmail:
-            response = gmail.send_draft(draft_id)
-            return JsonResponse({
-                "result": response,
-                "status": True,
-                "message": "Draft sent successfully"
-            })
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e),
-            "status": False,
-            "message": "Draft send failed"
-        })
-
+        return JsonResponse({"error": str(e)})
+     
 
 @csrf_exempt
 @require_POST

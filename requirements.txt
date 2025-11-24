@@ -1,6 +1,7 @@
 Django==4.2.5
-google-api-python-client 
-google-auth-httplib2 
-google-auth-oauthlib
-python-dotenv
-pytz
+google-api-python-client==2.149.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
+python-dotenv==1.2.1
+pytz==2024.2
+python-dateutil==2.9.0.post0

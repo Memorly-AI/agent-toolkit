@@ -25,11 +25,12 @@ SECRET_KEY = 'django-insecure-zxam6sk2hyxsrmzoctu(5gc6jd_)^qw+!svzup9y3qtvy=&z#g
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    'localhost',
+    'dev.tools.memorly.ai'
+]
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

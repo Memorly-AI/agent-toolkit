@@ -1,14 +1,12 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import os
-import json
 from google_apis.util.Auth import Auth
 
 
 class Doc(Auth):
 
-    def __init__(self, scopes=None):
-        super().__init__(scopes)
+    def __init__(self, user_id, scopes=None):
+        super().__init__(user_id, scopes)
         self.doc = None
 
     def __enter__(self):
