@@ -32,7 +32,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     'localhost',
-    'dev.tools.memorly.ai'
+    API_DOMAIN
 ]
 
 # Application definition
